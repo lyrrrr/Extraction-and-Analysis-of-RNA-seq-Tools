@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/networkgraph.js"></script>
+<script src="https://code.highcharts.com/modules/exporting.js"></script>
+<script>
+    function GetTool(){
+        //console.log("111mmmmm");
+        var toolid = document.getElementsByName("box");
+        var value = new Array();
+        for(var i = 0; i < toolid.length; i++){
+            if(toolid[i].checked){
+                value.push(toolid[i].value);
+            }
+        } 
+        //console.log(value);
+
+        publist=value;
+        linknodes=[];
+        mapnodes=getCitedList(publist);
+        chart.series[0].update({
+            data: linknodes
+        }, true); 
+    }
+
+var NowSelectID=0;
+
+    function ExpandGraph(){
+
+        //get top cited pub of the selected node
+        var addlink=addnodes(NowSelectID);
+        if(NowSelectID!=0){
+            for(let i=0;i<addlink.length;i++){
+                linknodes.push([addlink[i],NowSelectID])
+            }
+            chart.series[0].update({
+            data: linknodes
+            }, true); 
+            NowSelectID=0;
+        }
+    }
+
+    function addnodes(NowID){
+    var nowurl=CitationUrl_Base+"&id="+NowID;
+    var NowID_tlist=getlist(nowurl);
+    var NowID_cite=[];
+
+    for(let i=1;i<NowID_tlist.length;i++){
+        NowID_cite.push(NowID_tlist[i].childNodes[0].nodeValue);
+    }
+    if(NowID_cite.length==0){
+        alter("No citation of the selected paper!");
+        return [];
+    }
+
+    var citelist=[];
+    var togettoplist=[];
+    var startplace;
+    if(NowID_cite.length<1500){
+        startplace=0;
+    }
+    else if(NowID_cite.length<3000){
+        startplace=Math.floor(NowID_cite.length/3);
+        //console.log(startplace);
+    }
+    else{
+        startplace=Math.floor(NowID_cite.length/2);
+    }
+
+    for(let j=startplace;j<NowID_cite.length;j=j+200){
+        var nowurl=CitationUrl_Base+"&id="+NowID_cite[j];
+        var j_end=j+200;
+        for(let t=j+1;t<j+200;++t){
+            if(t<NowID_cite.length){
+                nowurl=nowurl+"&id="+NowID_cite[t];
+            }
+            else{
+                j_end=NowID_cite.length;
+                break;
+            }
+        }
+        //var citenum=getPubCitation(nowurl);
+        var listofhund=getlist(nowurl);
+        var t_num=0;
+        var lastnode_id=listofhund[0].childNodes[0].nodeValue;
+        var t_inter=NowID_cite.slice(j,j_end);
+        var ptr=0;
+
+        for(let x=0;x<listofhund.length;x++){
+            var tnode=listofhund[x].childNodes[0].nodeValue;
+            if(tnode==t_inter[ptr]){
+                // now node is the query node
+                if (ptr!=0){
+                    togettoplist.push([lastnode_id,t_num]);
+                    lastnode_id=tnode;
+                    t_num=0;
+                }               
+                ptr++;
+            }
+            else if (tnode!=t_inter[ptr]){
+                t_num++;
+            }
+        }
+
+        togettoplist.push([lastnode_id,t_num]);
+        //citelist.push(citenum);
+    }
+
+    //console.log(togettoplist.slice(0,10));
+    togettoplist.sort(function(a,b){return b[1]-a[1]});
+
+    if(togettoplist.length>=5){
+        console.log(togettoplist.slice(0,5));
+        var level1_nodes=togettoplist.slice(0,5);
+    }
+    else{
+        console.log(togettoplist.slice(0,togettoplist.length));
+        var level1_nodes=togettoplist.slice(0,togettoplist.length);
+    }
+
+    var returnlist=[];
+    for(let i=0;i<level1_nodes.length;i++){
+        returnlist.push(level1_nodes[i][0]);
+
+        //add mapnodes---size of nodes
+        mapnodes[level1_nodes[i][0]]=level1_nodes[i][1];
+    }
+
+    var meshurl="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml";
+    for(let i=0;i<returnlist.length;i++){
+        meshurl=meshurl+"&id="+returnlist[i];
+    }
+
+    var txhr = new XMLHttpRequest();
+    txhr.open('get', meshurl, false);
+    //xhr.responseType = 'json';
+    txhr.send(null);
+    var tpaperlist=txhr.responseXML.getElementsByTagName("PubmedArticle");
+    var papernum=tpaperlist.length;
+    var returnmesh=[];   //all mesh terms
+
+    for(let i=0;i<papernum;i++){
+        var meshlist=tpaperlist[i].getElementsByTagName("DescriptorName");
+        var termlist=[];
+        for(let j=0;j<meshlist.length;j++){
+            termlist.push(meshlist[j].childNodes[0].nodeValue);
+        }
+        returnmesh.push(termlist);
+    }
+
+    console.log(returnmesh);
+    for(let i=0;i<papernum;i++){
+        var t_index=0;
+        for(let j=0;j<returnmesh[i].length;j++){
+            if(topmesh.indexOf(returnmesh[i][j])!=-1){
+                t_index=t_index+topmesh.indexOf(returnmesh[i][j])+1;
+            }
+        }
+        //add node color map
+        NodeColor[returnlist[i]]=t_index;
+    }
+
+    return returnlist;
+
+    }
+
+//GetTool();
+</script>
+
+<figure class="highcharts-figure">
+    <div id="pubinfo" style="position:absolute;left:20px;top:100px;width:200px;height:50px">
+        Paper information 
+    </div>
+    <div id="container"></div>
+    <p class="highcharts-description">
+    </p>
+</figure>
+
+<body>
+    <div id="checktools" style="position:absolute;right:20px;top:100px;width:200px;height:100px">
+        <p>Choose tools to find the overlap between them:<br> </p>
+        <input type="checkbox" name="box" value="27004904"> MEGA7<br>
+        <input type="checkbox" name="box" value="25516281" checked="checked"> DESeq2<br>
+        <input type="checkbox" name="box" value="24695404" checked="checked"> Trimmomatic<br>
+        <input type="checkbox" name="box" value="24132122"> MEGA6<br>
+        <input type="checkbox" name="box" value="22388286" > Bowtie 2<br>
+        <input type="checkbox" name="box" value="19505943" > SAMtool<br>
+        <input type="checkbox" name="box" value="22743772"> Fiji<br>
+        <input type="checkbox" name="box" value="22930834"> NIH Image/ImageJ<br>
+        <input type="checkbox" name="box" value="19451168"> Burrows–Wheeler<br>
+        <input type="checkbox" name="box" value="23104886"> STAR<br>
+        <input type="checkbox" name="box" value="25605792"> limma<br>
+        <input type="checkbox" name="box" value="25260700"> HTSeq<br>
+        <input type="checkbox" name="box" value="24451623"> RAxML Version8<br>
+        <input type="checkbox" name="box" value="19910308"> edgeR<br>
+        <input type="checkbox" name="box" value="23329690"> MAFFT<br>
+        <input type="button" name="UpdateButton" onclick="GetTool()" value="update" style="margin-top:10px;"/>
+        <input type="button" name="ExpandButton" onclick="ExpandGraph()" value="expand" style="margin-top:10px;"/>
+    </div>
+
+    <div class="legendBox">
+        <div class="circle1"></div> <div class="text1" id="top1">Top 1 Mesh Term</div>
+        <div class="circle2"></div> <div class="text2" id="top2">Top 2 Mesh Term</div>
+        <div class="circle3"></div> <div class="text3" id="top3">Top 3 Mesh Term</div>
+</div>
+</body>
+
+<style type="text/css">
+.highcharts-figure, .highcharts-data-table table {
+    min-width: 320px; 
+    max-width: 800px;
+    margin: 1em auto;
+}
+
+.highcharts-data-table table {
+	font-family: Verdana, sans-serif;
+	border-collapse: collapse;
+	border: 1px solid #EBEBEB;
+	margin: 10px auto;
+	text-align: center;
+	width: 100%;
+	max-width: 500px;
+}
+.highcharts-data-table caption {
+    padding: 1em 0;
+    font-size: 1.2em;
+    color: #555;
+}
+.highcharts-data-table th {
+	font-weight: 600;
+    padding: 0.5em;
+}
+.highcharts-data-table td, .highcharts-data-table th, .highcharts-data-table caption {
+    padding: 0.5em;
+}
+.highcharts-data-table thead tr, .highcharts-data-table tr:nth-child(even) {
+    background: #f8f8f8;
+}
+.highcharts-data-table tr:hover {
+    background: #f1f7ff;
+}
+
+.legendBox{
+  position:absolute;
+  bottom:50px;
+  left:930px;
+  width:100%;
+}
+.circle1
+{
+    position:absolute;
+    bottom:40px;
+    left:0px;
+	width: 10px;
+	height: 10px;
+	background-color: red;
+	border-radius: 50px;      
+}
+.text1
+{
+    position:absolute;
+    bottom:36px;
+    left:20px;
+}
+.circle2
+{
+    position:absolute;
+    bottom:22px;
+    left:0px;
+	width: 10px;
+	height: 10px;
+	background-color: rgb(38, 216, 38);
+	border-radius: 50px;      
+}
+.text2
+{
+    position:absolute;
+    bottom:18px;
+    left:20px;
+}
+.circle3
+{
+    position:absolute;
+    bottom:4px;
+    left:0px;
+	width: 10px;
+	height: 10px;
+	background-color: blue;
+	border-radius: 50px;     
+}
+.text3
+{
+    position:absolute;
+    bottom:0px;
+    left:20px;
+}
+
+</style>
+
+<script>
+var HTMLpublication = '%authors% (%date%) \'%title%\' <i>%journal%\</i>,<b>%volume%</b> %issue%%pages%PMID:<a href="%data%"target="_blank"> %PMID% </a></br></br>' //Formats output
+
+var publications, idStringList;
+var pubmedSearchAPI = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?";
+var pubmedSummaryAPI = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?";
+var database = "db=pubmed";
+var returnmode = "&retmode=json";
+var returnmax = "&retmax=100";//maximum number of references returned
+var searchterm = "&term=Neher[Author] AND Marty[Author])";//Search terms (see PubMed search terms https://www.ncbi.nlm.nih.gov/books/NBK3827/#pubmedhelp.Search_Field_Descriptions_and for info)
+var returntype = "&rettype=abstract";
+var idString ="&id= 25608678";
+var idURL = pubmedSearchAPI + database + returnmode + returnmax + searchterm
+//console.log(idURL);
+
+var getPubmed = function(url) { //passed url
+    return new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('get', url, true);
+        xhr.responseType = 'json';
+        //xhr.send();
+        xhr.onload = function() {
+            var status = xhr.status;
+            console.log(xhr)
+            if (status == 200) {   //status 200 signifies OK (http://www.w3schools.com/ajax/ajax_xmlhttprequest_onreadystatechange.asp)
+                //console.log(xhr.response)
+                resolve(xhr.response);
+            } else {
+                reject(status);
+            }
+        };
+        xhr.send();
+    });
+};
+
+//get paper title--old
+var getPubmed2 = function(url) { //passed url
+    var xhr = new XMLHttpRequest();
+    xhr.open('get', url, false);
+    //xhr.responseType = 'json';
+    xhr.send(null);
+    //console.log(xhr.response);
+    var getresult = JSON.parse(xhr.response);
+    //console.log(getresult);
+    for (refs in getresult.result){
+        if (refs !== 'uids'){
+            //console.log(summary.result[refs].title);
+            //console.log(getresult.result[refs].title);
+            return getresult.result[refs].title;
+
+            //document.getElementById("pubinfo").innerHTML = summary.result[refs].title;
+        }
+    }
+};
+
+//get paper title--NEW
+var getPubmesh = function(url) { //passed url
+    var xhr = new XMLHttpRequest();
+    xhr.open('get', url, false);
+    //xhr.responseType = 'json';
+    xhr.send(null);
+    //console.log(xhr.response);
+    //var getresult = JSON.parse(xhr.response);
+    //console.log(getresult);
+    var returnlist=[];
+    var t_title=xhr.responseXML.getElementsByTagName("ArticleTitle")[0].childNodes[0].nodeValue;
+    //console.log(t_title);
+    returnlist.push(t_title);
+    var pubyear=xhr.responseXML.getElementsByTagName("Year")[0].childNodes[0].nodeValue;
+    //console.log(pubyear);
+    returnlist.push(pubyear);
+    var meshlist=xhr.responseXML.getElementsByTagName("DescriptorName");
+    var termlist=[];
+    for(let i=0;i<meshlist.length;i++){
+        termlist.push(meshlist[i].childNodes[0].nodeValue);
+    }
+    //console.log(termlist);
+
+    returnlist.push(termlist);
+    return returnlist;
+
+};
+
+var topmesh=[];
+
+//get the mesh terms for all nodes
+//choose the color of nodes: return map
+var getAllmesh = function(url,l_paper) { //passed url
+    var xhr = new XMLHttpRequest();
+    xhr.open('get', url, false);
+    //xhr.responseType = 'json';
+    xhr.send(null);
+    var tpaperlist=xhr.responseXML.getElementsByTagName("PubmedArticle");
+    var papernum=tpaperlist.length;
+    var returnlist=[];   //all mesh terms
+
+    for(let i=0;i<papernum;i++){
+        var meshlist=tpaperlist[i].getElementsByTagName("DescriptorName");
+        var termlist=[];
+        for(let j=0;j<meshlist.length;j++){
+            termlist.push(meshlist[j].childNodes[0].nodeValue);
+        }
+        returnlist.push(termlist);
+    }
+
+    console.log(returnlist);
+
+    var termnum=new Map();
+    //get number of each mesh term
+    for(let i=0;i<returnlist.length;i++){
+        for(let j=0;j<returnlist[i].length;j++){
+            if(termnum.has(returnlist[i][j])){
+                const number = termnum.get(returnlist[i][j]) + 1;
+                termnum.set(returnlist[i][j], number);
+            }
+            else{
+                termnum.set(returnlist[i][j], 1);
+            }
+        }
+    }
+    console.log(termnum);
+    //arr_termnum.sort(function(a,b){return b[1]-a[1]});
+
+    // term map to array
+    const resultArr = Array.from(termnum); 
+    // sort array
+    resultArr.sort((a,b) => { return b[1] - a[1]});
+    //console.log(resultArr);
+
+    //get top 3 mesh terms(not include by all papers)
+
+    topmesh=[];
+    for(let i=0;i<resultArr.length;i++){
+        if(resultArr[i][1]<papernum){
+            topmesh.push(resultArr[i][0]);
+        }
+
+        if(topmesh.length>=3){
+            break;
+        }
+    }
+
+    console.log(topmesh);
+
+    document.getElementById("top1").innerHTML =topmesh[0];
+    document.getElementById("top2").innerHTML =topmesh[1];
+    document.getElementById("top3").innerHTML =topmesh[2];
+
+    //create node=>color index map
+    var NodeToColor={}
+    for(let i=0;i<papernum;i++){
+        var t_index=0;
+        for(let j=0;j<returnlist[i].length;j++){
+            if(topmesh.indexOf(returnlist[i][j])!=-1){
+                t_index=t_index+topmesh.indexOf(returnlist[i][j])+1;
+            }
+        }
+        NodeToColor[l_paper[i]]=t_index;
+    }
+
+    console.log(NodeToColor);
+    return NodeToColor;
+    
+};
+
+//var turl="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml&id=12407413";
+//getPubmesh(turl);
+
+//var testurl="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&rettype=abstract&id=24695404";
+//getPubmed2(testurl);
+
+var linknodes=[];  //data used to draw the graph
+var NodeColor={};
+var CitationUrl="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&linkname=pubmed_pubmed_citedin&id=22388286&id=19505943";
+var CitationUrl_Base="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&linkname=pubmed_pubmed_citedin";
+
+// get citation number
+var getPubCitation= function(url){
+    var xhr1 = new XMLHttpRequest();  //实例化XMLHttpRequest 对象
+    xhr1.open ("GET", url, false);
+    //xhr1.responseType = 'json';
+    xhr1.send(null);  //发送请求
+    //console.log(xhr1.responseXML);  //接收数据
+    //console.log(xhr1.responseXML.getElementsByTagName("Id")[1].childNodes[0].nodeValue);
+    //console.log(xhr1.responseXML.getElementsByTagName("Id").length);
+    return (xhr1.responseXML.getElementsByTagName("Id").length-1);
+}
+var getlist= function(url){
+    var xhr1 = new XMLHttpRequest();  //实例化XMLHttpRequest 对象
+    xhr1.open ("GET", url, false);
+    //xhr1.responseType = 'json';
+    xhr1.send(null);  //发送请求
+    
+    return xhr1.responseXML.getElementsByTagName("Id");
+}
+
+//var allnodes=[];
+//"25409509"
+//var publist=["22388286","19505943","24695404"];
+var publist=["25516281","24695404"];
+//var publist=[];
+//var publist=["26432245"];
+var getCitedList= function(listofpub){
+    
+    var url=CitationUrl_Base;
+    for(let i=0;i<listofpub.length;i++){
+        url=url+"&id="+listofpub[i];
+    }
+    
+    var xhr1 = new XMLHttpRequest();  //实例化XMLHttpRequest 对象
+    xhr1.open ("GET", url, false);
+    //xhr1.responseType = 'json';
+    xhr1.send(null);  //发送请求
+    //console.log(xhr1.responseXML);  //接收数据
+    //console.log(xhr1.responseXML.getElementsByTagName("Id")[1].childNodes[0].nodeValue);
+    //console.log(xhr1.responseXML.getElementsByTagName("Id").length);
+    var IdNum=xhr1.responseXML.getElementsByTagName("Id").length;
+
+    var temp=[];
+    var ptr2=0;
+    var allnodes=[];  // all citations of listofpub
+
+    //find citation list for each paper in listofpub
+    for (let i = 0; i < IdNum; ++i){
+
+        var NowNode=xhr1.responseXML.getElementsByTagName("Id")[i].childNodes[0].nodeValue;
+        //result = numbers.includes(8);
+
+        if(NowNode==listofpub[ptr2]){
+            // now node is the query node
+            if(ptr2!=0){
+                allnodes.push(temp);
+                temp=[];
+            }
+            ptr2++;
+        }
+        else if (NowNode!=listofpub[ptr2]){
+            temp.push(NowNode);
+        }
+    }
+    allnodes.push(temp);
+    console.log(allnodes[0].length);
+
+    //get the overlap of papers in listofpub
+    if(listofpub.length>1){
+        //choose more than one tool
+        var intersection = allnodes[0].filter(v => allnodes[1].includes(v));
+
+        for(let i=2;i<allnodes.length;i++){
+            intersection=intersection.filter(v => allnodes[i].includes(v));
+        }
+        console.log(intersection.length);
+    }
+    else if(listofpub.length==1){
+        var intersection= allnodes[0];
+    }
+    else if(listofpub.length==0){
+        var map_nodes={};
+        linknodes=[];
+        window.alert("No tool is chosen!");
+        for(let t=0;t<listofpub.length;t++){
+            linknodes.push([listofpub[t],listofpub[t]]);
+        }
+        return map_nodes;
+    }
+    
+    
+    if(intersection.length==0){
+        //no overlap between papers
+        var map_nodes={};
+        linknodes=[];
+        for(let t=0;t<listofpub.length;t++){
+            linknodes.push([listofpub[t],listofpub[t]]);
+        }
+        window.alert("No overlap between chosen tools!");
+        return map_nodes;
+    }
+
+    var citelist=[];
+    var togettoplist=[];
+    var startplace;
+    if(intersection.length<1500){
+        startplace=0;
+    }
+    else if(intersection.length<3000){
+        startplace=Math.floor(intersection.length/3);
+        console.log(startplace);
+    }
+    else{
+        startplace=Math.floor(intersection.length/2);
+    }
+
+    for(let j=startplace;j<intersection.length;j=j+200){
+        var nowurl=CitationUrl_Base+"&id="+intersection[j];
+        var j_end=j+200;
+        for(let t=j+1;t<j+200;++t){
+            if(t<intersection.length){
+                nowurl=nowurl+"&id="+intersection[t];
+            }
+            else{
+                j_end=intersection.length;
+                break;
+            }
+        }
+        //var citenum=getPubCitation(nowurl);
+        var listofhund=getlist(nowurl);
+        var t_num=0;
+        var lastnode_id=listofhund[0].childNodes[0].nodeValue;
+        var t_inter=intersection.slice(j,j_end);
+        var ptr=0;
+
+        for(let x=0;x<listofhund.length;x++){
+            var tnode=listofhund[x].childNodes[0].nodeValue;
+            if(tnode==t_inter[ptr]){
+                // now node is the query node
+                if (ptr!=0){
+                    togettoplist.push([lastnode_id,t_num]);
+                    lastnode_id=tnode;
+                    t_num=0;
+                }               
+                ptr++;
+            }
+            else if (tnode!=t_inter[ptr]){
+                t_num++;
+            }
+        }
+
+        togettoplist.push([lastnode_id,t_num]);
+        //citelist.push(citenum);
+    }
+
+    //console.log(togettoplist.slice(0,10));
+    togettoplist.sort(function(a,b){return b[1]-a[1]});
+    console.log(togettoplist.slice(0,10));
+
+    var level1_nodes=togettoplist.slice(0,10);
+
+    for(let strnum=0;strnum<listofpub.length;strnum++){
+        for(let tonum=0;tonum<10;tonum++){
+            linknodes.push([level1_nodes[tonum][0],listofpub[strnum]]);
+        }
+    }
+
+    var test_pub_list =[];
+    for(let p=0;p<10;p++){
+        test_pub_list.push(level1_nodes[p][0]);
+    }
+    for(let p=0;p<listofpub.length;p++){
+        test_pub_list.push(listofpub[p]);
+    }
+    //var test_pub_list=level1_nodes;
+    var testurl_base="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml";
+
+    for(let tt=0;tt<test_pub_list.length;tt++){
+        testurl_base=testurl_base+"&id="+test_pub_list[tt];
+    }
+
+    NodeColor=getAllmesh(testurl_base,test_pub_list);
+
+    var map_nodes={};
+    for(let xx=0;xx<10;xx++){
+        map_nodes[level1_nodes[xx][0]]=level1_nodes[xx][1];
+    }
+    return map_nodes;
+
+}
+
+function whatcolor(index){
+    if(index==1){
+        return 'rgb(255,0,0)';
+    }
+    else if(index==2){
+        return 'rgb(0,255,0)';
+    }
+    else if(index==3){
+        return 'rgb(0,0,255)';
+    }
+    else if(index==4){
+        return 'rgb(255,0,255)';
+    }
+    else if(index==5){
+        return 'rgb(0,255,255)';
+    }
+    else if(index==6){
+        //return 'rgb(255,255,255)';
+        return 'gray';
+    }
+    else if(index==0){
+        return 'rgb(0,0,0)';
+    }
+}
+
+//get connected top cited nodes
+//get the nodes for the initial graph with "22388286","19505943"
+var mapnodes=getCitedList(publist);
+
+
+</script>
+    
+<script>
+
+(function(H) {
+  H.wrap(H.seriesTypes.networkgraph.prototype.pointClass.prototype, 'getLinkPath', function(p) {
+    //var left = this.toNode,
+    //  right = this.fromNode;
+
+    var left = this.fromNode,
+      right = this.toNode;
+
+    var angle = Math.atan((left.plotX - right.plotX) /
+      (left.plotY - right.plotY));
+
+
+    if (angle) {
+      let path = ['M', left.plotX, left.plotY, right.plotX, right.plotY],
+        lastPoint = left,
+        nextLastPoint = right,
+        pointRadius = 23,
+        arrowLength = 5,
+        arrowWidth = 5;
+
+      if (left.plotY < right.plotY) {
+        path.push(
+          nextLastPoint.plotX - pointRadius * Math.sin(angle),
+          nextLastPoint.plotY - pointRadius * Math.cos(angle),
+        );
+        path.push(
+          nextLastPoint.plotX - pointRadius * Math.sin(angle) - arrowLength * Math.sin(angle) - arrowWidth * Math.cos(angle),
+          nextLastPoint.plotY - pointRadius * Math.cos(angle) - arrowLength * Math.cos(angle) + arrowWidth * Math.sin(angle),
+        );
+
+        path.push(
+          nextLastPoint.plotX - pointRadius * Math.sin(angle),
+          nextLastPoint.plotY - pointRadius * Math.cos(angle),
+        );
+        path.push(
+          nextLastPoint.plotX - pointRadius * Math.sin(angle) - arrowLength * Math.sin(angle) + arrowWidth * Math.cos(angle),
+          nextLastPoint.plotY - pointRadius * Math.cos(angle) - arrowLength * Math.cos(angle) - arrowWidth * Math.sin(angle),
+        );
+
+
+      } else {
+        path.push(
+          nextLastPoint.plotX + pointRadius * Math.sin(angle),
+          nextLastPoint.plotY + pointRadius * Math.cos(angle),
+        );
+        path.push(
+          nextLastPoint.plotX + pointRadius * Math.sin(angle) + arrowLength * Math.sin(angle) - arrowWidth * Math.cos(angle),
+          nextLastPoint.plotY + pointRadius * Math.cos(angle) + arrowLength * Math.cos(angle) + arrowWidth * Math.sin(angle),
+        );
+        path.push(
+          nextLastPoint.plotX + pointRadius * Math.sin(angle),
+          nextLastPoint.plotY + pointRadius * Math.cos(angle),
+        );
+        path.push(
+          nextLastPoint.plotX + pointRadius * Math.sin(angle) + arrowLength * Math.sin(angle) + arrowWidth * Math.cos(angle),
+          nextLastPoint.plotY + pointRadius * Math.cos(angle) + arrowLength * Math.cos(angle) - arrowWidth * Math.sin(angle),
+        );
+
+      }
+
+      return path
+    }
+    return [
+      ['M', left.plotX || 0, left.plotY || 0],
+      ['L', right.plotX || 0, right.plotY || 0],
+    ];
+  });
+}(Highcharts));
+
+
+var textinfo="";
+
+// Add the nodes option through an event call. We want to start with the parent
+// item and apply separate colors to each child element, then the same color to
+// grandchildren.
+Highcharts.addEvent(
+    Highcharts.Series,
+    'afterSetOptions',
+    function (e) {
+        var colors = Highcharts.getOptions().colors,
+            i = 3,
+            nodes = {};
+
+        if (
+            this instanceof Highcharts.seriesTypes.networkgraph &&
+            e.options.id === 'lang-tree'
+        ) {
+            e.options.data.forEach(function (link) {
+
+                if(mapnodes[link[0]]>5000){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 20
+                        },
+                        //color:colors[NodeColor[link[0]]]
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>3000){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 18
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>2000){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 16
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>1500){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 15
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>1000){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 14
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>500){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 12
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else if(mapnodes[link[0]]>100){
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 11
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+                else{
+                    nodes[link[0]] = {
+                        id: link[0],
+                        marker: {
+                            radius: 9
+                        },
+                        color:whatcolor(NodeColor[link[0]])
+                    };
+                }
+            //set size of center tool nodes
+                if(publist.indexOf(link[1])!=-1){
+                    nodes[link[1]] = {
+                        id: link[1],
+                        marker: {
+                            radius: 22
+                        },
+                        //color:colors[NodeColor[link[1]]]
+                        color:whatcolor(NodeColor[link[1]])
+                };
+            }
+
+            });
+            e.options.nodes = Object.keys(nodes).map(function (id) {
+                return nodes[id];
+            });
+        }
+    }
+);
+
+const chart = Highcharts.chart('container', {
+    chart: {
+        type: 'networkgraph',
+        height: '100%'
+    },
+    title: {
+        text: 'Paper Network'
+    },
+    /*subtitle: {
+        text: 'A Force-Directed Network Graph in Highcharts'
+    },*/
+    plotOptions: {
+        networkgraph: {
+            keys: ['from', 'to'],
+            layoutAlgorithm: {
+                enableSimulation: true,
+                friction: -0.9,
+                linkLength: 40
+            }
+            
+        },
+        series: {
+        allowPointSelect: true,
+        point: {
+                events: {
+                    click: function () {
+                        NowSelectID=this.id;
+                        textinfo="Paper Information</br>";
+
+                        idStringList=this.id;
+                        idStringList = "&id=" + idStringList;
+                        textinfo= textinfo+ "</br>PMID= "+this.id;
+
+                        var testurl_base="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml";
+                        //summaryURL = pubmedSummaryAPI + database + returnmode + returntype + idStringList;
+                        testurl_base=testurl_base+idStringList;
+                        //console.log(summaryURL);
+                        var infolist=getPubmesh(testurl_base);
+                        //var titlestr=getPubmed2(summaryURL);
+                        var titlestr=infolist[0];
+                        var pub_year=infolist[1];
+
+                        textinfo= textinfo+ "</br>Title : "+titlestr;
+                        textinfo= textinfo+ "</br>Year : "+pub_year;
+                        textinfo= textinfo+ "</br>Mesh Terms : ";
+                        for(let i=0;i<(infolist[2].length-1);i++){
+                            textinfo= textinfo+infolist[2][i]+" , ";
+                        }
+                        textinfo= textinfo+infolist[2][infolist[2].length-1];
+                        var citeurl=CitationUrl_Base+"&id=" + this.id;
+                        //console.log(citeurl);
+                        var citenum=getPubCitation(citeurl);
+                        textinfo=textinfo+"</br>Citation Number: "+citenum;
+                        document.getElementById("pubinfo").innerHTML = textinfo;
+                    }
+                }
+            }
+    }
+    },
+    series: [{
+        dataLabels: {
+            enabled: true,
+            linkFormat: ''
+        },
+        id: 'lang-tree',
+        data: linknodes
+
+    }]
+});
+
+</script>
+</html>
