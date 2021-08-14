@@ -1,7 +1,7 @@
 # Extraction-and-Analysis-of-RNA-seq-Tools
 It is a project of 2021 Summer GEARS
 
-Author:Yurui Li   Mentor: Prof. Arnav Jhala
+Author:Yurui Li          Mentor: Prof. Arnav Jhala
 
 Graph Introduction
 
